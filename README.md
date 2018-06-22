@@ -2,7 +2,7 @@ Dump Postgresql database and upload to s3 encrypted
 ===================================================
 
 * Backup file is compressed with gzip
-* Backup file is encrypted with aes-512-cbc symetric key
+* Backup file is encrypted with aes-256-cbc symetric key
 * sha512 sum file of the backup file and of the encryped file are in the .sha512 file
 * Backup is uploaded to S3
 
