@@ -1,12 +1,37 @@
 #! /bin/bash
 
-NAME_PREFIX=${POSTGRES_DATABASE}-backup
-EXTENSION=${EXTENSION:-.dmp.gz.enc}
-BASEFILE="${NAME_PREFIX}_`date +"%Y-%m-%d_%H-%M"`"
-BACKUPFILE="${BASEFILE}${EXTENSION}"
-SUMFILE="${BASEFILE}.sha512"
+if [ "${NAME_PREFIX}" = "**None**" ]; then
+  NAME_PREFIX=${POSTGRES_DATABASE}-backup
+fi
 
-export AWS_DEFAULT_REGION=${S3_REGION:-eu-central-1}
+if [ "${DATE_FORMAT}" = "**None**" ]; then
+  DATE_FORMAT="_%Y-%m-%d_%H-%M"
+fi
+
+if [ "${FILE_CHECKSUM_ALGO}" = "**None**" ]; then
+  FILE_CHECKSUM_ALGO=sha512
+elif [ "${FILE_CHECKSUM_ALGO}" = "sha512" ]; then
+  FILE_CHECKSUM_ALGO=sha512
+elif [ "${FILE_CHECKSUM_ALGO}" = "sha256" ]; then
+  FILE_CHECKSUM_ALGO=sha256
+elif [ "${FILE_CHECKSUM_ALGO}" = "sha1" ]; then
+  FILE_CHECKSUM_ALGO=sha1
+elif [ "${FILE_CHECKSUM_ALGO}" = "md5" ]; then
+  FILE_CHECKSUM_ALGO=md5
+else
+  echo "FILE_CHECKSUM_ALGO environment variable should be sha512, sha256, sha1 or md5"
+  exit 1
+fi
+
+EXTENSION=${EXTENSION:-.dmp.gz.enc}
+BASEFILE="${NAME_PREFIX}`date +${DATE_FORMAT}`"
+BACKUPFILE="${BASEFILE}${EXTENSION}"
+SUMFILE="${BASEFILE}.${FILE_CHECKSUM_ALGO}"
+
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+S3_REGION="${S3_REGION:-us-west-1}"
+
+export AWS_DEFAULT_REGION=${S3_REGION:-us-west-1}
 
 set -e
 set -o pipefail
@@ -66,11 +91,13 @@ export AWS_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
 
 echo "Creating backup of ${POSTGRES_DATABASE} database from ${POSTGRES_HOST}..."
 # pg_dump ${POSTGRES_HOST_OPTS} -v ${POSTGRES_DATABASE}
-pg_dump ${POSTGRES_HOST_OPTS} ${POSTGRES_DATABASE} | tee >(sha512sum - >/tmp/${SUMFILE}) | gzip -c | openssl aes-256-cbc -e -out /tmp/${BACKUPFILE} -k "${ENCRYPTION_KEY}"
+pg_dump ${POSTGRES_HOST_OPTS} ${POSTGRES_DATABASE} | tee >(${FILE_CHECKSUM_ALGO}sum - >/tmp/${SUMFILE}) | gzip -c | openssl aes-256-cbc -e -out /tmp/${BACKUPFILE} -k "${ENCRYPTION_KEY}"
 
 sed -ie "s/-/${BASEFILE}.dmp/" /tmp/${SUMFILE}
 cd /tmp
-sha512sum ${BACKUPFILE} >> /tmp/${SUMFILE}
-# echo "uploading ${BACKUPFILE} to s3 bucket ${S3_BUCKET}"
+${FILE_CHECKSUM_ALGO}sum ${BACKUPFILE} >> /tmp/${SUMFILE}
+echo CHECKSUMS
+cat  /tmp/${SUMFILE}
+echo "uploading ${BACKUPFILE} to s3 bucket ${S3_BUCKET}"
 aws s3 cp /tmp/${SUMFILE} s3://${S3_BUCKET}/
 aws s3 cp /tmp/${BACKUPFILE} s3://${S3_BUCKET}/

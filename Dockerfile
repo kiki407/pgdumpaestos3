@@ -5,19 +5,13 @@ RUN sh install.sh && rm install.sh
 
 ENV POSTGRES_DATABASE **None**
 ENV POSTGRES_HOST **None**
-ENV POSTGRES_PORT 5432
+ENV NAME_PREFIX **None**
+ENV FILE_CHECKSUM_ALGO **None**
 ENV POSTGRES_USER **None**
 ENV POSTGRES_PASSWORD **None**
 ENV ENCRYPTION_KEY **None**
-
-
 ENV S3_BUCKET **None**
-ENV S3_REGION us-west-1
-
-RUN apk update && \
-    apk add --no-cache --virtual=build-dependencies \
-        bash \
-        sed
+ENV DATE_FORMAT **None**
 
 COPY backup.sh backup.sh
 RUN chmod +x backup.sh
